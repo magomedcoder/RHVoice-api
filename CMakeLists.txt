@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
-project(RHvoice-api)
+project(RHVoice-api)
 
 set(CMAKE_CXX_STANDARD 23)
 
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp" "main.cpp")
+add_executable(RHVoice-api ${SOURCES})
+
 find_package(cpprestsdk REQUIRED)
+find_package(OpenSSL REQUIRED)
 
-add_executable(rhvoice_tts_server src/main.cpp)
-
-target_link_libraries(rhvoice_tts_server cpprestsdk::cpprest)
+target_link_libraries(RHVoice-api PRIVATE cpprest OpenSSL::SSL OpenSSL::Crypto)

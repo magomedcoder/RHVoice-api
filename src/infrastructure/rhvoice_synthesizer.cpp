@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fstream>
-#include <sstream>
 
 std::vector<uint8_t> RHVoiceSynthesizer::Synthesize(const TTSRequest &req) {
     std::string path = generate_temp_filename();

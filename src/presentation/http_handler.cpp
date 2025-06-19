@@ -1,20 +1,15 @@
 #include "http_handler.h"
-#include "../domain/tts_request.h"
 #include <cpprest/json.h>
-#include <cpprest/http_listener.h>
 
-using namespace web;
-using namespace http;
+HttpHandler::HttpHandler(ITTSUseCase *usecase) : usecase_(usecase) {}
 
-HttpHandler::HttpHandler(ITTSService *tts_service) : tts_service_(tts_service) {}
-
-void HttpHandler::HandlePost(http_request request) {
-    request.extract_json().then([this, request](json::value val) mutable {
+void HttpHandler::HandlePost(web::http::http_request request) {
+    request.extract_json().then([this, request](web::json::value val) mutable {
         try {
             if (!val.has_field("text") || !val.at("text").is_string()) {
-                json::value error;
-                error["error"] = json::value::string("Параметр 'text' обязателен");
-                request.reply(status_codes::BadRequest, error);
+                web::json::value err;
+                err["error"] = web::json::value::string("Параметр 'text' обязателен");
+                request.reply(web::http::status_codes::BadRequest, err);
                 return;
             }
 
@@ -23,22 +18,26 @@ void HttpHandler::HandlePost(http_request request) {
             if (val.has_field("voice") && val.at("voice").is_string())
                 req.voice = val.at("voice").as_string();
 
-            auto data = tts_service_->Synthesize(req);
+            auto future = usecase_->ProcessRequest(req);
 
-            http_response response(status_codes::OK);
-            response.headers().add("Content-Type", "audio/wav");
-            response.headers().add("Content-Disposition", "attachment; filename=output.wav");
-            response.set_body(concurrency::streams::bytestream::open_istream(std::move(data)));
-            request.reply(response);
+            std::thread([future = std::move(future), request]() mutable {
+                try {
+                    auto data = future.get();
+                    web::http::http_response response(web::http::status_codes::OK);
+                    response.headers().add("Content-Type", "audio/wav");
+                    response.set_body(concurrency::streams::bytestream::open_istream(std::move(data)));
+                    request.reply(response);
+                } catch (const std::exception &e) {
+                    web::json::value err;
+                    err["error"] = web::json::value::string(e.what());
+                    request.reply(web::http::status_codes::InternalError, err);
+                }
+            }).detach();
 
-        } catch (const std::exception &e) {
-            json::value error;
-            error["error"] = json::value::string(std::string("Ошибка: ") + e.what());
-            request.reply(status_codes::InternalError, error);
         } catch (...) {
-            json::value error;
-            error["error"] = json::value::string("Неизвестная ошибка при обработке запроса");
-            request.reply(status_codes::InternalError, error);
+            web::json::value err;
+            err["error"] = web::json::value::string("Неизвестная ошибка при обработке запроса");
+            request.reply(web::http::status_codes::InternalError, err);
         }
     });
 }

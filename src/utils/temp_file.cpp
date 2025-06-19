@@ -9,5 +9,5 @@ std::string generate_temp_filename() {
         throw std::runtime_error("Не удалось создать временный файл");
     }
     close(fd);
-    return std::string(filename);
+    return filename;
 }

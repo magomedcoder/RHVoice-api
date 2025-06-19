@@ -12,7 +12,9 @@ void HttpHandler::HandlePost(http_request request) {
     request.extract_json().then([this, request](json::value val) mutable {
         try {
             if (!val.has_field("text") || !val.at("text").is_string()) {
-                request.reply(status_codes::BadRequest, "Параметр 'text' обязателен");
+                json::value error;
+                error["error"] = json::value::string("Параметр 'text' обязателен");
+                request.reply(status_codes::BadRequest, error);
                 return;
             }
 
@@ -29,8 +31,14 @@ void HttpHandler::HandlePost(http_request request) {
             response.set_body(concurrency::streams::bytestream::open_istream(std::move(data)));
             request.reply(response);
 
+        } catch (const std::exception &e) {
+            json::value error;
+            error["error"] = json::value::string(std::string("Ошибка: ") + e.what());
+            request.reply(status_codes::InternalError, error);
         } catch (...) {
-            request.reply(status_codes::InternalError, "Ошибка JSON или синтеза речи");
+            json::value error;
+            error["error"] = json::value::string("Неизвестная ошибка при обработке запроса");
+            request.reply(status_codes::InternalError, error);
         }
     });
 }
